@@ -1,44 +1,37 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding: utf-8
-import os, bs4, glob, csv
-from dateutil.parser import parse
+
+import os
+import json
+import csv
+from glob import glob
 from datetime import datetime
-os.system('cls' if os.name == 'nt' else 'clear')
 
-files = glob.glob("Keep/**/*.html",recursive=True)
-if 'Keep/archive_browser.html' in files: files.remove('Keep/archive_browser.html')
-
-# Prep CSV file
+# Define output CSV file
 now = datetime.now()
-csvout = "notes_%s.csv" % now.strftime("%Y-%m-%d_%H%M")
+csvout = f"notes_{now.strftime('%Y-%m-%d_%H%M')}.csv"
 
-with open(csvout, "w") as f:
+# Write headers and extract data from JSON files
+with open(csvout, "w", newline='', encoding='utf-8') as f:
     writer = csv.writer(f)
-    writer.writerow(["file", "date", "title", "content"])
+    writer.writerow(["title", "textContent", "labels", "attachments"])
 
-    for file in files:
-        print(file)
-        with open(file, mode="r") as page:
-            soup = bs4.BeautifulSoup(page.read(), "html.parser")
+    # Loop through each JSON file in the directory
+    for file in glob("Keep/**/*.json", recursive=True):
+        with open(file, 'r', encoding='utf-8') as json_file:
+            data = json.load(json_file)
 
-        # Make Excel-Friendly date
-        googDate = soup.select(".heading")[0].getText().strip()
-        xlDate = datetime.strftime(parse(googDate), "%m/%d/%Y %H:%M")
+            # Extract fields with defaults if they are missing
+            title = data.get("title", "")
+            text_content = data.get("textContent", "")
 
-        # Get title
-        if len(soup.select(".title")) == 0:
-            title = ""
-        else:
-            title = soup.select(".title")[0].getText()
+            # Process labels to create a comma-separated string
+            labels = ', '.join([label['name'] for label in data.get("labels", [])])
 
-        # Parse Content
-        html = soup.select(".content")[0]
-        # Convert linebreaks
-        for br in soup.find_all("br"):
-            br.replace_with("\n")
-        content = html.getText()
+            # Process attachments to create a comma-separated list of attachment paths
+            attachments = ', '.join([attachment['filePath'] for attachment in data.get("attachments", [])])
 
-        note = {"date": xlDate, "title": title, "content": content}
-        writer.writerow([file, note["date"], note["title"], note["content"]])
+            # Write the row to CSV
+            writer.writerow([title, text_content, labels, attachments])
 
-print("\n" + "-" * 50 + "\nDone! %s notes saved to %s\n" % (len(files), csvout))
+print(f"Done! Notes saved to {csvout}")
